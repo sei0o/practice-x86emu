@@ -26,8 +26,8 @@ defmodule X86emu do
   end
 
   def run(bin_path) do
-    create_emulator(0x0000, 0x7c00)
-    |> load_instructions(File.read!(bin_path))
+    create_emulator(0x7c00, 0x7c00)
+    |> load_instructions(0x7c00, File.read!(bin_path))
     |> execute
     |> dump_registers
   end
@@ -41,12 +41,12 @@ defmodule X86emu do
     |> put_in([:registers, :esp], esp)
   end
 
-  def load_instructions(emu, binary, pos \\ 0)
-  def load_instructions(emu, "", _), do: emu
-  def load_instructions(emu, <<inst :: size(8)>> <> rest_binary, pos) do
+  def load_instructions(emu, offset, binary, pos \\ 0)
+  def load_instructions(emu, _, "", _), do: emu
+  def load_instructions(emu, offset, <<inst :: size(8)>> <> rest_binary, pos) do
     emu
-    |> put_in([:memory, pos], inst)
-    |> load_instructions(rest_binary, pos + 1)
+    |> put_in([:memory, offset + pos], inst)
+    |> load_instructions(offset, rest_binary, pos + 1)
   end
 
   def execute(emu = %Emulator{eip: 0x00, started: true}), do: emu
@@ -59,9 +59,10 @@ defmodule X86emu do
   end
 
   def do_instruction(emu, code) when code in 0xb8..(0xb8+7), do: mov_r32_imm32(emu)
+  def do_instruction(emu, 0xe9), do: near_jump(emu)
   def do_instruction(emu, 0xeb), do: short_jump(emu)
-  def do_instruction(_, code) do 
-    raise "Not Implemented: #{code}"
+  def do_instruction(emu, code) do 
+    raise "Not Implemented: #{code} at 0x#{emu.eip |> Integer.to_string(16)}"
   end
 
   def mov_r32_imm32(emu) do
@@ -77,18 +78,29 @@ defmodule X86emu do
     %{emu | eip: emu.eip + 2 + diff} 
   end
 
-  def get_code8(emu, index) do
-    emu.memory[emu.eip + index]
+  def near_jump(emu) do
+    diff = get_code32_signed emu, 1
+    %{emu | eip: emu.eip + 5 + diff}
   end
 
-  def get_code8_signed(emu, index) do
-    emu.memory[emu.eip + index]
+  def get_code8(emu, offset) do
+    emu.memory[emu.eip + offset]
   end
 
-  def get_code32(emu, index, byt \\ 3)
-  def get_code32(emu, index, 0), do: get_code8(emu, index)
-  def get_code32(emu, index, byt) do
-    get_code8(emu, index + byt) <<< byt * 8 ||| get_code32(emu, index, byt - 1)
+  def get_code8_signed(emu, offset) do
+    <<ret :: integer-signed-8>> = <<get_code8(emu, offset) :: integer-unsigned-8>>
+    ret
+  end
+
+  def get_code32(emu, offset, byt \\ 3)
+  def get_code32(emu, offset, 0), do: get_code8(emu, offset)
+  def get_code32(emu, offset, byt) do
+    get_code8(emu, offset + byt) <<< byt * 8 ||| get_code32(emu, offset, byt - 1)
+  end
+
+  def get_code32_signed(emu, offset) do
+    <<ret :: integer-signed-32>> = <<get_code32(emu, offset) :: integer-unsigned-32>>
+    ret
   end
 
   def dump_registers(emu) do
