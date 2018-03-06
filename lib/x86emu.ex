@@ -15,7 +15,14 @@ defmodule X86emu do
     |> Enum.into(%{})
     
     %Emulator{eip: eip, memory: mem}
+    |> put_in([:registers, :eax], 0)
+    |> put_in([:registers, :ecx], 0)
+    |> put_in([:registers, :edx], 0)
+    |> put_in([:registers, :ebx], 0)
     |> put_in([:registers, :esp], esp)
+    |> put_in([:registers, :ebp], 0)
+    |> put_in([:registers, :esi], 0)    
+    |> put_in([:registers, :edi], 0)
   end
 
   def load_instructions(emu, offset, binary, pos \\ 0)
@@ -30,18 +37,22 @@ defmodule X86emu do
   def execute(emu = %Emulator{eip: eip}) when eip > 0xffff, do: emu
   def execute(emu) do
     code = emu |> Emulator.get_code8
-    emu.registers |> IO.inspect
     emu 
     |> Map.put(:started, true)
     |> Instruction.do_instruction(code)
+    # |> dump_registers
     |> execute
   end
 
   def dump_registers(emu) do
-    [:eax, :ecx, :edx, :ebx, :esp, :ebp, :esi, :edi, :eip]
+    [:eax, :ecx, :edx, :ebx, :esp, :ebp, :esi, :edi]
     |> Enum.map(fn reg ->
-        val = emu.registers[reg] || 0
+        val = emu.registers[reg]
         IO.puts "#{reg} = 0x#{val |> Integer.to_string(16) |> String.pad_leading(8, "0")}"
       end)
+    IO.puts "eip = 0x#{emu.eip |> Integer.to_string(16) |> String.pad_leading(8, "0")}"
+    IO.puts ""
+
+    emu
   end
 end

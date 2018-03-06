@@ -104,6 +104,17 @@ defmodule X86emu.Emulator do
   def calc_mem_addr(  _, %ModRM{rm: 4}),  do: raise "Not implemented ModR/M rm = 4 (SIB)"
   def calc_mem_addr(  _, %ModRM{mod: 3}), do: raise "Not implemented ModR/M mod = 3"
 
+  def push32(emu, val) do
+    emu
+    |> put_in([:registers, :esp], emu.registers.esp - 4)
+    |> set_mem32(emu.registers.esp - 4, val)
+  end
+
+  def pop32(emu) do
+    val = emu |> get_mem32(emu.registers.esp)
+    {emu |> put_in([:registers, :esp], emu.registers.esp + 4), val}
+  end
+
   def register_name(val) do
     %{
       0 => :eax,
