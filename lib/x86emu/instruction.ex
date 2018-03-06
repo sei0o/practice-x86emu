@@ -4,6 +4,7 @@ defmodule X86emu.Instruction do
   def do_instruction(emu, 0x01), do: add_rm32_r32(emu)
   def do_instruction(emu, code) when code in 0x50..0x57, do: push_r32(emu)
   def do_instruction(emu, code) when code in 0x58..0x5f, do: pop_r32(emu)
+  def do_instruction(emu, 0x6a), do: push_imm8(emu)
   def do_instruction(emu, 0x83), do: handle_code83(emu)
   def do_instruction(emu, 0x89), do: mov_rm32_r32(emu)
   def do_instruction(emu, 0x8b), do: mov_r32_rm32(emu)
@@ -82,6 +83,16 @@ defmodule X86emu.Instruction do
   def push_r32(emu) do
     reg_index = get_code8(emu) - 0x50
     emu |> push32(get_register32(emu, reg_index)) |> seek(1)
+  end
+
+  def push_imm32(emu) do
+    val = get_code32 emu, 1
+    emu |> push32(val) |> seek(5)
+  end
+
+  def push_imm8(emu) do
+    val = get_code8 emu, 1
+    emu |> push32(val) |> seek(2)
   end
 
   def pop_r32(emu) do
