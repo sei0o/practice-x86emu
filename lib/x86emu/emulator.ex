@@ -73,15 +73,39 @@ defmodule X86emu.Emulator do
     get_mem32 emu, addr
   end
 
+  def set_rm8(emu, %ModRM{mod: 3, rm: reg_index}, value), do: set_register8(emu, register_name8(reg_index), value)
+  def set_rm8(emu, modrm, value) do
+    addr = calc_mem_addr emu, modrm
+    set_mem8 emu, addr, value
+  end
+
+  def get_rm8(emu, %ModRM{mod: 3, rm: reg_index}), do: get_register8(emu, reg_index)
+  def get_rm8(emu, modrm) do
+    addr = calc_mem_addr emu, modrm
+    get_mem8 emu, addr
+  end
+
   def set_register32(emu, reg_index, value), do: emu |> put_in([:registers, register_name(reg_index)], value)
 
   def get_register32(emu, reg_index), do: emu.registers[register_name(reg_index)]
-
-  def set_register8(emu, :al, value), do: emu |> put_in([:registers, :eax], (emu.registers.eax &&& 0xffffff00) ||| value)
-  def set_register8(emu, :ah, value), do: emu |> put_in([:registers, :eax], (emu.registers.eax &&& 0xffff00ff) ||| (value <<< 8))
-
-  def get_register8(emu, :al), do: emu.registers.eax &&& 0xff
-  def get_register8(emu, :ah), do: (emu.registers.eax >>> 8) &&& 0xff
+  
+  def set_register8(emu, reg, value) when is_integer(reg), do: set_register8(emu, register_name8(reg), value)
+  def set_register8(emu, name, value) do
+    [h, t] = Atom.to_string(name) |> String.split("", trim: true)
+    case t do
+      "h" -> emu |> put_in([:registers, :"e#{h}x"], (emu.registers[:"e#{h}x"] &&& 0xffff00ff) ||| (value <<< 8))
+      "l" -> emu |> put_in([:registers, :"e#{h}x"], (emu.registers[:"e#{h}x"] &&& 0xffffff00) ||| value)
+    end
+  end
+  
+  def get_register8(emu, reg) when is_integer(reg), do: get_register8(emu, register_name8(reg))  
+  def get_register8(emu, name) do
+    [h, t] = Atom.to_string(name) |> String.split("", trim: true)
+    case t do
+      "h" -> (emu.registers[:"e#{h}x"] >>> 8) &&& 0xff
+      "l" -> emu.registers[:"e#{h}x"] &&& 0xff
+    end
+  end
 
   def set_mem32(emu, addr, value, pos \\ 0)
   def set_mem32(emu, _, _, 4), do: emu
@@ -162,6 +186,19 @@ defmodule X86emu.Emulator do
       5 => :ebp,
       6 => :esi,
       7 => :edi
+    }[val]
+  end
+
+  def register_name8(val) do
+    %{
+      0 => :al,
+      1 => :cl,
+      2 => :dl,
+      3 => :bl,
+      4 => :ah,
+      5 => :ch,
+      6 => :dh,
+      7 => :bh
     }[val]
   end
 end

@@ -19,13 +19,18 @@ defmodule X86emu.Instruction do
 
   def do_instruction(emu, 0x01), do: add_rm32_r32(emu)
   def do_instruction(emu, 0x3b), do: cmp_r32_rm32(emu)
+  def do_instruction(emu, 0x3c), do: cmp_al_imm8(emu)
+  def do_instruction(emu, code) when code in 0x40..0x47, do: inc_r32(emu)
   def do_instruction(emu, code) when code in 0x50..0x57, do: push_r32(emu)
   def do_instruction(emu, code) when code in 0x58..0x5f, do: pop_r32(emu)
   def do_instruction(emu, 0x6a), do: push_imm8(emu)
+  def do_instruction(emu, 0x74), do: je(emu)
   def do_instruction(emu, 0x7e), do: jle(emu)
   def do_instruction(emu, 0x83), do: handle_code83(emu)
   def do_instruction(emu, 0x89), do: mov_rm32_r32(emu)
+  def do_instruction(emu, 0x8a), do: mov_r8_rm8(emu)
   def do_instruction(emu, 0x8b), do: mov_r32_rm32(emu)
+  def do_instruction(emu, code) when code in 0xb0..0xb7, do: mov_r8_imm8(emu)
   def do_instruction(emu, code) when code in 0xb8..0xbf, do: mov_r32_imm32(emu)
   def do_instruction(emu, 0xc3), do: ret(emu)
   def do_instruction(emu, 0xc7), do: mov_rm32_imm32(emu)
@@ -34,11 +39,26 @@ defmodule X86emu.Instruction do
   def do_instruction(emu, 0xe9), do: near_jump(emu)
   def do_instruction(emu, 0xeb), do: short_jump(emu)
   def do_instruction(emu, 0xec), do: in_al_dx(emu)
+  def do_instruction(emu, 0xee), do: out_dx_al(emu)
   def do_instruction(emu, 0xff), do: handle_codeff(emu)
   def do_instruction(emu, code) do 
     raise "Not Implemented: #{code |> Integer.to_string(16)} at 0x#{emu.eip |> Integer.to_string(16)}"
   end
+
+  def mov_r8_rm8(emu) do
+    {emu, modrm} = emu |> seek(1) |> read_modrm
+    rm8 = get_rm8 emu, modrm
+    emu
+    |> set_register8(modrm.reg, rm8)
+  end
   
+  def mov_r8_imm8(emu) do
+    reg = get_code8(emu) - 0xb0
+    emu
+    |> set_register8(reg, get_code8(emu, 1))
+    |> seek(2)
+  end
+
   def mov_r32_imm32(emu) do
     reg = register_name(get_code8(emu) - 0xb8)
     val = get_code32 emu, 1
@@ -53,6 +73,12 @@ defmodule X86emu.Instruction do
     emu
     |> seek(4)
     |> set_rm32(modrm, val)
+  end
+
+  def mov_rm8_r8(emu) do
+    {emu, modrm} = emu |> seek(1) |> read_modrm
+    r8 = get_register8 emu, modrm.reg
+    emu |> set_rm8(modrm, r8)
   end
 
   def mov_rm32_r32(emu) do
@@ -90,6 +116,14 @@ defmodule X86emu.Instruction do
   def inc_rm32(emu, modrm) do
     val = get_rm32 emu, modrm
     emu |> set_rm32(modrm, val + 1)
+  end
+
+  def inc_r32(emu) do
+    reg_index = get_code8(emu) - 0x40
+    r32 = get_register32 emu, reg_index
+    emu
+    |> set_register32(reg_index, r32 + 1)
+    |> seek(1)
   end
 
   def short_jump(emu) do
@@ -153,6 +187,12 @@ defmodule X86emu.Instruction do
     emu |> seek(1) |> update_eflags_sub(rm32, imm8)
   end
 
+  def cmp_al_imm8(emu) do
+    al = get_register8 emu, :al
+    imm8 = get_code8_signed emu, 1
+    emu |> seek(2) |> update_eflags_sub(al, imm8)
+  end
+
   X86emu.Instruction.Macros.jcc :c, :carry?
   X86emu.Instruction.Macros.jcc :z, :zero?
   X86emu.Instruction.Macros.jcc :s, :sign?
@@ -164,6 +204,10 @@ defmodule X86emu.Instruction do
 
   def jle(emu) do
     emu |> seek(if (sign?(emu) != overflow?(emu)) or zero?(emu), do: 2 + get_code8_signed(emu, 1), else: 2) 
+  end
+
+  def je(emu) do
+    emu |> seek(if zero?(emu), do: 2 + get_code8_signed(emu, 1), else: 2)
   end
 
   def in_al_dx(emu) do
