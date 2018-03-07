@@ -121,12 +121,11 @@ defmodule X86emu.Emulator do
   def update_eflags_sub(emu, l, r) do
     sign_l = l >>> 31
     sign_r = r >>> 31
-
     emu
     |> set_carry_flag((l - r) >>> 32 != 0)
     |> set_zero_flag(l - r == 0)
-    |> set_sign_flag((l - r) >>> 31 &&& 1 == 1)
-    |> set_overflow_flag(sign_l != sign_r and sign_l != (l - r) >>> 31 &&& 1)
+    |> set_sign_flag(((l - r) >>> 31 &&& 1) == 1)
+    |> set_overflow_flag(sign_l != sign_r and sign_l != ((l - r) >>> 31 &&& 1))
   end
 
   def set_carry_flag(emu, true),     do: %{emu | eflags: emu.eflags ||| 1}
@@ -141,7 +140,7 @@ defmodule X86emu.Emulator do
   def set_overflow_flag(emu, true),  do: %{emu | eflags: emu.eflags ||| (1 <<< 11)}  
   def set_overflow_flag(emu, false),  do: %{emu | eflags: emu.eflags &&& ~~~(1 <<< 11)}  
   
-  def eflag?(emu, pos), do: (emu.eflags >>> pos) &&& 1 != 0
+  def eflag?(emu, pos), do: ((emu.eflags >>> pos) &&& 1) != 0
   def carry?(emu), do: eflag?(emu, 0)
   def zero?(emu), do: eflag?(emu, 6)
   def sign?(emu), do: eflag?(emu, 7)

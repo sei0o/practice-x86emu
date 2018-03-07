@@ -20,6 +20,7 @@ defmodule X86emu.Instruction do
   def do_instruction(emu, code) when code in 0x50..0x57, do: push_r32(emu)
   def do_instruction(emu, code) when code in 0x58..0x5f, do: pop_r32(emu)
   def do_instruction(emu, 0x6a), do: push_imm8(emu)
+  def do_instruction(emu, 0x7e), do: jle(emu)
   def do_instruction(emu, 0x83), do: handle_code83(emu)
   def do_instruction(emu, 0x89), do: mov_rm32_r32(emu)
   def do_instruction(emu, 0x8b), do: mov_r32_rm32(emu)
@@ -155,11 +156,11 @@ defmodule X86emu.Instruction do
   X86emu.Instruction.Macros.jcc :o, :overflow?
 
   def jl(emu) do
-    emu |> seek(if sign?(emu) != overflow?(emu), do: 2 + get_code8_signed(emu), else: 2)
+    emu |> seek(if sign?(emu) != overflow?(emu), do: 2 + get_code8_signed(emu, 1), else: 2)
   end
 
   def jle(emu) do
-    emu |> seek(if (sign?(emu) != overflow?(emu)) or zero?(emu), do: 2 + get_code8_signed(emu), else: 2) 
+    emu |> seek(if (sign?(emu) != overflow?(emu)) or zero?(emu), do: 2 + get_code8_signed(emu, 1), else: 2) 
   end
 
   def handle_code83(emu) do
