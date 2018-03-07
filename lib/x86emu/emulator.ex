@@ -92,7 +92,10 @@ defmodule X86emu.Emulator do
     emu |> get_mem32(addr, pos + 1, val ||| (newval <<< (pos * 8)))
   end
 
-  def set_mem8(emu, addr, value), do: emu |> put_in([:memory, addr], value &&& 0xff)
+  def set_mem8(emu, addr, value) do
+    <<unsigned :: integer-unsigned-8>> = <<value &&& 0xff :: integer-signed-8>>
+    emu |> put_in([:memory, addr], unsigned)
+  end
 
   def get_mem8(emu, addr), do: emu.memory[addr]
 
@@ -114,6 +117,35 @@ defmodule X86emu.Emulator do
     val = emu |> get_mem32(emu.registers.esp)
     {emu |> put_in([:registers, :esp], emu.registers.esp + 4), val}
   end
+
+  def update_eflags_sub(emu, l, r) do
+    sign_l = l >>> 31
+    sign_r = r >>> 31
+
+    emu
+    |> set_carry_flag((l - r) >>> 32 != 0)
+    |> set_zero_flag(l - r == 0)
+    |> set_sign_flag((l - r) >>> 31 &&& 1 == 1)
+    |> set_overflow_flag(sign_l != sign_r and sign_l != (l - r) >>> 31 &&& 1)
+  end
+
+  def set_carry_flag(emu, true),     do: %{emu | eflags: emu.eflags ||| 1}
+  def set_carry_flag(emu, false),     do: %{emu | eflags: emu.eflags &&& ~~~1}
+
+  def set_zero_flag(emu, true),      do: %{emu | eflags: emu.eflags ||| (1 <<< 6)}
+  def set_zero_flag(emu, false),      do: %{emu | eflags: emu.eflags &&& ~~~(1 <<< 6)}
+  
+  def set_sign_flag(emu, true),      do: %{emu | eflags: emu.eflags ||| (1 <<< 7)}
+  def set_sign_flag(emu, false),      do: %{emu | eflags: emu.eflags &&& ~~~(1 <<< 7)}
+  
+  def set_overflow_flag(emu, true),  do: %{emu | eflags: emu.eflags ||| (1 <<< 11)}  
+  def set_overflow_flag(emu, false),  do: %{emu | eflags: emu.eflags &&& ~~~(1 <<< 11)}  
+  
+  def eflag?(emu, pos), do: (emu.eflags >>> pos) &&& 1 != 0
+  def carry?(emu), do: eflag?(emu, 0)
+  def zero?(emu), do: eflag?(emu, 6)
+  def sign?(emu), do: eflag?(emu, 7)
+  def overflow?(emu), do: eflag?(emu, 11)
 
   def register_name(val) do
     %{

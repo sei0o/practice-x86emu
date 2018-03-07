@@ -1,7 +1,22 @@
+defmodule X86emu.Instruction.Macros do
+  defmacro jcc(name, checkfn) do
+    quote do
+      def unquote(:"j#{name}")(emu) do
+        emu |> seek(if unquote(checkfn)(emu), do: 2 + get_code8_signed(emu), else: 2)
+      end
+      def unquote(:"jn#{name}")(emu) do
+        emu |> seek(if unquote(checkfn)(emu), do: 2, else: 2 + get_code8_signed(emu))
+      end
+    end
+  end    
+end
+
 defmodule X86emu.Instruction do
+  require X86emu.Instruction.Macros
   import X86emu.Emulator
 
   def do_instruction(emu, 0x01), do: add_rm32_r32(emu)
+  def do_instruction(emu, 0x3b), do: cmp_r32_rm32(emu)
   def do_instruction(emu, code) when code in 0x50..0x57, do: push_r32(emu)
   def do_instruction(emu, code) when code in 0x58..0x5f, do: pop_r32(emu)
   def do_instruction(emu, 0x6a), do: push_imm8(emu)
@@ -62,7 +77,10 @@ defmodule X86emu.Instruction do
   def sub_rm32_imm8(emu, modrm) do
     rm32 = get_rm32 emu, modrm
     imm8 = get_code8_signed emu
-    emu |> seek(1) |> set_rm32(modrm, rm32 - imm8) # seek(1) is for an immediate value
+    emu
+    |> seek(1)
+    |> set_rm32(modrm, rm32 - imm8)
+    |> update_eflags_sub(rm32, imm8)
   end
 
   def inc_rm32(emu, modrm) do
@@ -118,11 +136,38 @@ defmodule X86emu.Instruction do
     %{emu | eip: val}
   end
 
+  def cmp_r32_rm32(emu) do
+    {emu, modrm} = emu |> seek(1) |> read_modrm
+    r32 = get_register32 emu, modrm.reg
+    rm32 = get_rm32 emu, modrm
+    emu |> update_eflags_sub(r32, rm32)
+  end
+
+  def cmp_r32_imm8(emu, modrm) do
+    rm32 = get_rm32 emu, modrm
+    imm8 = get_code8_signed emu
+    emu |> seek(1) |> update_eflags_sub(rm32, imm8)
+  end
+
+  X86emu.Instruction.Macros.jcc :c, :carry?
+  X86emu.Instruction.Macros.jcc :z, :zero?
+  X86emu.Instruction.Macros.jcc :s, :sign?
+  X86emu.Instruction.Macros.jcc :o, :overflow?
+
+  def jl(emu) do
+    emu |> seek(if sign?(emu) != overflow?(emu), do: 2 + get_code8_signed(emu), else: 2)
+  end
+
+  def jle(emu) do
+    emu |> seek(if (sign?(emu) != overflow?(emu)) or zero?(emu), do: 2 + get_code8_signed(emu), else: 2) 
+  end
+
   def handle_code83(emu) do
     {emu, modrm} = emu |> seek(1) |> read_modrm
     case modrm.reg do
       0 -> add_rm32_imm8(emu, modrm)
       5 -> sub_rm32_imm8(emu, modrm)
+      7 -> cmp_r32_imm8(emu, modrm)
       other -> raise "Not implemented: 83 with REG #{other}"
     end
   end
