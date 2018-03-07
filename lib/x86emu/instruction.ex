@@ -14,6 +14,8 @@ end
 defmodule X86emu.Instruction do
   require X86emu.Instruction.Macros
   import X86emu.Emulator
+  alias X86emu.IOAccess
+  use Bitwise
 
   def do_instruction(emu, 0x01), do: add_rm32_r32(emu)
   def do_instruction(emu, 0x3b), do: cmp_r32_rm32(emu)
@@ -31,6 +33,7 @@ defmodule X86emu.Instruction do
   def do_instruction(emu, 0xe8), do: call_rel32(emu)
   def do_instruction(emu, 0xe9), do: near_jump(emu)
   def do_instruction(emu, 0xeb), do: short_jump(emu)
+  def do_instruction(emu, 0xec), do: in_al_dx(emu)
   def do_instruction(emu, 0xff), do: handle_codeff(emu)
   def do_instruction(emu, code) do 
     raise "Not Implemented: #{code |> Integer.to_string(16)} at 0x#{emu.eip |> Integer.to_string(16)}"
@@ -161,6 +164,18 @@ defmodule X86emu.Instruction do
 
   def jle(emu) do
     emu |> seek(if (sign?(emu) != overflow?(emu)) or zero?(emu), do: 2 + get_code8_signed(emu, 1), else: 2) 
+  end
+
+  def in_al_dx(emu) do
+    addr = emu.registers.edx &&& 0xffff
+    val = IOAccess.io_in8 addr
+    emu |> set_register8(:al, val) |> seek(1)
+  end
+
+  def out_dx_al(emu) do
+    addr = emu.registers.edx &&& 0xffff
+    IOAccess.io_out8 addr, get_register8(emu, :al)
+    emu |> seek(1)
   end
 
   def handle_code83(emu) do

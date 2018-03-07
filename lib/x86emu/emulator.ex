@@ -77,6 +77,12 @@ defmodule X86emu.Emulator do
 
   def get_register32(emu, reg_index), do: emu.registers[register_name(reg_index)]
 
+  def set_register8(emu, :al, value), do: emu |> put_in([:registers, :eax], (emu.registers.eax &&& 0xffffff00) ||| value)
+  def set_register8(emu, :ah, value), do: emu |> put_in([:registers, :eax], (emu.registers.eax &&& 0xffff00ff) ||| (value <<< 8))
+
+  def get_register8(emu, :al), do: emu.registers.eax &&& 0xff
+  def get_register8(emu, :ah), do: (emu.registers.eax >>> 8) &&& 0xff
+
   def set_mem32(emu, addr, value, pos \\ 0)
   def set_mem32(emu, _, _, 4), do: emu
   def set_mem32(emu, addr, value, pos) do

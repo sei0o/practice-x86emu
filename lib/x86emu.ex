@@ -37,7 +37,7 @@ defmodule X86emu do
   def execute(emu = %Emulator{eip: eip}) when eip > 0xffff, do: emu
   def execute(emu) do
     code = emu |> Emulator.get_code8
-    # code |> Integer.to_string(16) |> IO.inspect
+    # code |> Integer.to_string(16) |> IO.puts
     emu 
     |> Map.put(:started, true)
     |> Instruction.do_instruction(code)
