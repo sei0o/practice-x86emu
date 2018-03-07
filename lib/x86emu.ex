@@ -2,11 +2,12 @@ defmodule X86emu do
   require Logger
   alias X86emu.{Instruction, Emulator}
 
-  def run(bin_path) do
-    create_emulator(0x7c00, 0x7c00)
+  def run(bin_path, opts \\ []) do
+    emu = create_emulator(0x7c00, 0x7c00)
     |> load_instructions(0x7c00, File.read!(bin_path))
-    |> execute
-    |> dump_registers
+    |> execute(opts[:verbose])
+    
+    unless opts[:quiet], do: emu |> dump_registers
   end
 
   def create_emulator(eip, esp) do
@@ -33,16 +34,20 @@ defmodule X86emu do
     |> load_instructions(offset, rest_binary, pos + 1)
   end
 
-  def execute(emu = %Emulator{eip: 0x00, started: true}), do: emu
-  def execute(emu = %Emulator{eip: eip}) when eip > 0xffff, do: emu
-  def execute(emu) do
+  def execute(emu = %Emulator{eip: 0x00, started: true}, _), do: emu
+  def execute(emu = %Emulator{eip: eip}, _) when eip > 0xffff, do: emu
+  def execute(emu, verbose) do
     code = emu |> Emulator.get_code8
-    # code |> Integer.to_string(16) |> IO.puts
-    emu 
+    emu = emu
     |> Map.put(:started, true)
     |> Instruction.do_instruction(code)
-    # |> dump_registers
-    |> execute
+    
+    if verbose do
+      code |> Integer.to_string(16) |> IO.puts
+      emu |> dump_registers
+    end
+    
+    emu |> execute(verbose)
   end
 
   def dump_registers(emu) do
