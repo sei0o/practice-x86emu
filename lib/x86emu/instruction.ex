@@ -14,7 +14,7 @@ end
 defmodule X86emu.Instruction do
   require X86emu.Instruction.Macros
   import X86emu.Emulator
-  alias X86emu.IOAccess
+  alias X86emu.{IOAccess, BIOS}
   use Bitwise
 
   def do_instruction(emu, 0x01), do: add_rm32_r32(emu)
@@ -35,6 +35,7 @@ defmodule X86emu.Instruction do
   def do_instruction(emu, 0xc3), do: ret(emu)
   def do_instruction(emu, 0xc7), do: mov_rm32_imm32(emu)
   def do_instruction(emu, 0xc9), do: leave(emu)
+  def do_instruction(emu, 0xcd), do: int(emu)
   def do_instruction(emu, 0xe8), do: call_rel32(emu)
   def do_instruction(emu, 0xe9), do: near_jump(emu)
   def do_instruction(emu, 0xeb), do: short_jump(emu)
@@ -220,6 +221,15 @@ defmodule X86emu.Instruction do
     addr = emu.registers.edx &&& 0xffff
     IOAccess.io_out8 addr, get_register8(emu, :al)
     emu |> seek(1)
+  end
+
+  def int(emu) do
+    int = get_code8 emu, 1
+    emu = emu |> seek(2)
+    case int do
+      0x10 -> emu |> BIOS.bios_video
+      _ -> raise "Unknown Interrupt: 0x#{int |> Integer.to_string(16)}"
+    end
   end
 
   def handle_code83(emu) do

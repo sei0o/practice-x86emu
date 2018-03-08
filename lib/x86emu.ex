@@ -51,6 +51,7 @@ defmodule X86emu do
   end
 
   def dump_registers(emu) do
+    IO.write IO.ANSI.reset
     [:eax, :ecx, :edx, :ebx, :esp, :ebp, :esi, :edi]
     |> Enum.map(fn reg ->
         val = emu.registers[reg]
